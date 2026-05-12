@@ -4,7 +4,6 @@ import licenta2026.backend_licenta.dto.AiPredictionRequest;
 import licenta2026.backend_licenta.dto.AiPredictionResponse;
 import licenta2026.backend_licenta.dto.TrafficFlowRequest;
 import licenta2026.backend_licenta.entity.AnalysisResult;
-import licenta2026.backend_licenta.entity.MonitoringSession;
 import licenta2026.backend_licenta.entity.TrafficFlow;
 import licenta2026.backend_licenta.repository.AnalysisResultRepository;
 import licenta2026.backend_licenta.repository.MonitoringSessionRepository;
@@ -99,10 +98,16 @@ public class TrafficFlowService {
         flow.setSourcePort(req.getSourcePort());
         flow.setDestinationPort(req.getDestinationPort());
         flow.setProtocol(req.getProtocol());
-        flow.setPacketCount(req.getPacketCount());
-        flow.setByteCount(req.getByteCount());
-        flow.setDuration(req.getDuration());
-        flow.setConnectionsPerSecond(req.getConnectionsPerSecond());
+        flow.setTotalFwdPackets(req.getTotalFwdPackets());
+        flow.setTotalBwdPackets(req.getTotalBwdPackets());
+        flow.setTotalFwdBytes(req.getTotalFwdBytes());
+        flow.setTotalBwdBytes(req.getTotalBwdBytes());
+        flow.setFlowDuration(req.getFlowDuration());
+        flow.setFlowBytesPerSec(req.getFlowBytesPerSec());
+        flow.setFlowPacketsPerSec(req.getFlowPacketsPerSec());
+        flow.setSynFlagCount(req.getSynFlagCount());
+        flow.setRstFlagCount(req.getRstFlagCount());
+        flow.setAvgPacketSize(req.getAvgPacketSize());
         flow.setTimestamp(LocalDateTime.now());
 
         if (req.getSessionId() != null) {
@@ -115,8 +120,19 @@ public class TrafficFlowService {
         try {
             int protocolNum = PROTOCOL_MAP.getOrDefault(flow.getProtocol(), 6);
             AiPredictionRequest aiReq = new AiPredictionRequest(
-                    flow.getPacketCount(), flow.getByteCount(), flow.getDuration(),
-                    protocolNum, flow.getDestinationPort(), flow.getConnectionsPerSecond());
+                    flow.getDestinationPort(),
+                    protocolNum,
+                    flow.getFlowDuration(),
+                    flow.getTotalFwdPackets(),
+                    flow.getTotalBwdPackets(),
+                    flow.getTotalFwdBytes(),
+                    flow.getTotalBwdBytes(),
+                    flow.getFlowBytesPerSec(),
+                    flow.getFlowPacketsPerSec(),
+                    flow.getSynFlagCount(),
+                    flow.getRstFlagCount(),
+                    flow.getAvgPacketSize()
+            );
             return restTemplate.postForObject(aiServiceUrl + "/predict", aiReq, AiPredictionResponse.class);
         } catch (Exception e) {
             AiPredictionResponse fallback = new AiPredictionResponse();

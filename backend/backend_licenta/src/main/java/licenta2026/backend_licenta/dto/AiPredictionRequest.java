@@ -1,36 +1,63 @@
 package licenta2026.backend_licenta.dto;
 
 public class AiPredictionRequest {
-    private long packetCount;
-    private long byteCount;
-    private double duration;
-    private int protocol;
     private int destinationPort;
-    private double connectionsPerSecond;
+    private int protocol;           // 6=TCP, 17=UDP, 1=ICMP
+    private double flowDuration;
+    private long totalFwdPackets;
+    private long totalBwdPackets;
+    private long totalFwdBytes;
+    private long totalBwdBytes;
+    private double flowBytesPerSec;
+    private double flowPacketsPerSec;
+    private int synFlagCount;
+    private int rstFlagCount;
+    private double avgPacketSize;
 
     public AiPredictionRequest() {}
 
-    public AiPredictionRequest(long packetCount, long byteCount, double duration,
-                                int protocol, int destinationPort, double connectionsPerSecond) {
-        this.packetCount = packetCount;
-        this.byteCount = byteCount;
-        this.duration = duration;
-        this.protocol = protocol;
+    public AiPredictionRequest(int destinationPort, int protocol, double flowDuration,
+                                long totalFwdPackets, long totalBwdPackets,
+                                long totalFwdBytes, long totalBwdBytes,
+                                double flowBytesPerSec, double flowPacketsPerSec,
+                                int synFlagCount, int rstFlagCount, double avgPacketSize) {
         this.destinationPort = destinationPort;
-        this.connectionsPerSecond = connectionsPerSecond;
+        this.protocol = protocol;
+        this.flowDuration = flowDuration;
+        this.totalFwdPackets = totalFwdPackets;
+        this.totalBwdPackets = totalBwdPackets;
+        this.totalFwdBytes = totalFwdBytes;
+        this.totalBwdBytes = totalBwdBytes;
+        this.flowBytesPerSec = flowBytesPerSec;
+        this.flowPacketsPerSec = flowPacketsPerSec;
+        this.synFlagCount = synFlagCount;
+        this.rstFlagCount = rstFlagCount;
+        this.avgPacketSize = avgPacketSize;
     }
 
-    public long getPacketCount() { return packetCount; }
-    public long getByteCount() { return byteCount; }
-    public double getDuration() { return duration; }
-    public int getProtocol() { return protocol; }
     public int getDestinationPort() { return destinationPort; }
-    public double getConnectionsPerSecond() { return connectionsPerSecond; }
+    public int getProtocol() { return protocol; }
+    public double getFlowDuration() { return flowDuration; }
+    public long getTotalFwdPackets() { return totalFwdPackets; }
+    public long getTotalBwdPackets() { return totalBwdPackets; }
+    public long getTotalFwdBytes() { return totalFwdBytes; }
+    public long getTotalBwdBytes() { return totalBwdBytes; }
+    public double getFlowBytesPerSec() { return flowBytesPerSec; }
+    public double getFlowPacketsPerSec() { return flowPacketsPerSec; }
+    public int getSynFlagCount() { return synFlagCount; }
+    public int getRstFlagCount() { return rstFlagCount; }
+    public double getAvgPacketSize() { return avgPacketSize; }
 
-    public void setPacketCount(long packetCount) { this.packetCount = packetCount; }
-    public void setByteCount(long byteCount) { this.byteCount = byteCount; }
-    public void setDuration(double duration) { this.duration = duration; }
-    public void setProtocol(int protocol) { this.protocol = protocol; }
-    public void setDestinationPort(int destinationPort) { this.destinationPort = destinationPort; }
-    public void setConnectionsPerSecond(double connectionsPerSecond) { this.connectionsPerSecond = connectionsPerSecond; }
+    public void setDestinationPort(int v) { this.destinationPort = v; }
+    public void setProtocol(int v) { this.protocol = v; }
+    public void setFlowDuration(double v) { this.flowDuration = v; }
+    public void setTotalFwdPackets(long v) { this.totalFwdPackets = v; }
+    public void setTotalBwdPackets(long v) { this.totalBwdPackets = v; }
+    public void setTotalFwdBytes(long v) { this.totalFwdBytes = v; }
+    public void setTotalBwdBytes(long v) { this.totalBwdBytes = v; }
+    public void setFlowBytesPerSec(double v) { this.flowBytesPerSec = v; }
+    public void setFlowPacketsPerSec(double v) { this.flowPacketsPerSec = v; }
+    public void setSynFlagCount(int v) { this.synFlagCount = v; }
+    public void setRstFlagCount(int v) { this.rstFlagCount = v; }
+    public void setAvgPacketSize(double v) { this.avgPacketSize = v; }
 }

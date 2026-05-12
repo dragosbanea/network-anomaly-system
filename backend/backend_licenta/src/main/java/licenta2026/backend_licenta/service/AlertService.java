@@ -62,9 +62,11 @@ public class AlertService {
     }
 
     private String classifyAlertType(TrafficFlow flow, double score) {
-        if (flow.getConnectionsPerSecond() > 50) return "PORT_SCAN";
-        if (flow.getByteCount() > 1_000_000 && flow.getDuration() < 2) return "DOS";
-        if (flow.getDestinationPort() == 22 || flow.getDestinationPort() == 3389) return "BRUTE_FORCE";
+        if (flow.getFlowPacketsPerSec() > 100) return "PORT_SCAN";
+        if ((flow.getTotalFwdBytes() + flow.getTotalBwdBytes()) > 1_000_000
+                && flow.getFlowDuration() < 2) return "DOS";
+        int port = flow.getDestinationPort();
+        if (port == 22 || port == 3389 || port == 21 || port == 23) return "BRUTE_FORCE";
         return "ANOMALY";
     }
 
