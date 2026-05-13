@@ -15,7 +15,6 @@ import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 @Service
 @Transactional
@@ -31,9 +30,6 @@ public class TrafficFlowService {
     @Value("${ai.service.url}")
     private String aiServiceUrl;
 
-    private static final Map<String, Integer> PROTOCOL_MAP = Map.of(
-            "TCP", 6, "UDP", 17, "ICMP", 1
-    );
 
     public TrafficFlowService(TrafficFlowRepository flowRepository,
                                AnalysisResultRepository resultRepository,
@@ -118,10 +114,8 @@ public class TrafficFlowService {
 
     private AiPredictionResponse callAiService(TrafficFlow flow) {
         try {
-            int protocolNum = PROTOCOL_MAP.getOrDefault(flow.getProtocol(), 6);
             AiPredictionRequest aiReq = new AiPredictionRequest(
                     flow.getDestinationPort(),
-                    protocolNum,
                     flow.getFlowDuration(),
                     flow.getTotalFwdPackets(),
                     flow.getTotalBwdPackets(),

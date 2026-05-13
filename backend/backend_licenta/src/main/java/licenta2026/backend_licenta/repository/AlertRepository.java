@@ -1,6 +1,6 @@
 package licenta2026.backend_licenta.repository;
 
-implicenta2026.backend_licenta.entity.Alert;
+import licenta2026.backend_licenta.entity.Alert;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

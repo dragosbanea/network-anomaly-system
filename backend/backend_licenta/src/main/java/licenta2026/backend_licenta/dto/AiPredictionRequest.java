@@ -2,7 +2,6 @@ package licenta2026.backend_licenta.dto;
 
 public class AiPredictionRequest {
     private int destinationPort;
-    private int protocol;           // 6=TCP, 17=UDP, 1=ICMP
     private double flowDuration;
     private long totalFwdPackets;
     private long totalBwdPackets;
@@ -16,13 +15,12 @@ public class AiPredictionRequest {
 
     public AiPredictionRequest() {}
 
-    public AiPredictionRequest(int destinationPort, int protocol, double flowDuration,
+    public AiPredictionRequest(int destinationPort, double flowDuration,
                                 long totalFwdPackets, long totalBwdPackets,
                                 long totalFwdBytes, long totalBwdBytes,
                                 double flowBytesPerSec, double flowPacketsPerSec,
                                 int synFlagCount, int rstFlagCount, double avgPacketSize) {
         this.destinationPort = destinationPort;
-        this.protocol = protocol;
         this.flowDuration = flowDuration;
         this.totalFwdPackets = totalFwdPackets;
         this.totalBwdPackets = totalBwdPackets;
@@ -36,7 +34,6 @@ public class AiPredictionRequest {
     }
 
     public int getDestinationPort() { return destinationPort; }
-    public int getProtocol() { return protocol; }
     public double getFlowDuration() { return flowDuration; }
     public long getTotalFwdPackets() { return totalFwdPackets; }
     public long getTotalBwdPackets() { return totalBwdPackets; }
@@ -49,7 +46,6 @@ public class AiPredictionRequest {
     public double getAvgPacketSize() { return avgPacketSize; }
 
     public void setDestinationPort(int v) { this.destinationPort = v; }
-    public void setProtocol(int v) { this.protocol = v; }
     public void setFlowDuration(double v) { this.flowDuration = v; }
     public void setTotalFwdPackets(long v) { this.totalFwdPackets = v; }
     public void setTotalBwdPackets(long v) { this.totalBwdPackets = v; }

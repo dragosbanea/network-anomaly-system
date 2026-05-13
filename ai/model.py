@@ -1,28 +1,32 @@
 """
-Anomaly detection model — trained on CICIDS2017 or synthetic fallback.
+Anomaly detection model trained on CICIDS2017 (MachineLearningCSV variant).
 
-Feature set (12 features aligned with CICFlowMeter output):
-  destination_port, protocol, flow_duration, total_fwd_packets,
-  total_bwd_packets, total_fwd_bytes, total_bwd_bytes,
-  flow_bytes_per_sec, flow_packets_per_sec,
+Feature set — 11 features matching CICFlowMeter output, aligned with
+the columns present in the CICIDS2017 MachineLearningCSV files:
+
+  destination_port, flow_duration, total_fwd_packets, total_bwd_packets,
+  total_fwd_bytes, total_bwd_bytes, flow_bytes_per_sec, flow_packets_per_sec,
   syn_flag_count, rst_flag_count, avg_packet_size
+
+Training strategy: fit Isolation Forest ONLY on BENIGN flows so the model
+learns what "normal" looks like; anomalous flows are flagged as deviations.
 """
 
-import os
 import glob
+import os
+
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
 from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 MODEL_PATH = "ids_model.joblib"
 DATA_DIR = "data"
 
 FEATURES = [
     "destination_port",
-    "protocol",
     "flow_duration",
     "total_fwd_packets",
     "total_bwd_packets",
@@ -35,10 +39,9 @@ FEATURES = [
     "avg_packet_size",
 ]
 
-# Mapping from CICIDS2017 column names (after strip) to our feature names
+# Column names in CICIDS2017 MachineLearningCSV (after strip) → feature names
 CICIDS_COL_MAP = {
     "Destination Port":             "destination_port",
-    "Protocol":                     "protocol",
     "Flow Duration":                "flow_duration",
     "Total Fwd Packets":            "total_fwd_packets",
     "Total Backward Packets":       "total_bwd_packets",
@@ -53,108 +56,122 @@ CICIDS_COL_MAP = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Data loading
+# ---------------------------------------------------------------------------
+
 def load_cicids2017(data_dir: str) -> pd.DataFrame | None:
     csv_files = glob.glob(os.path.join(data_dir, "**", "*.csv"), recursive=True)
     csv_files += glob.glob(os.path.join(data_dir, "*.csv"))
-    csv_files = list(set(csv_files))
+    csv_files = sorted(set(csv_files))
 
     if not csv_files:
         return None
 
-    print(f"Found {len(csv_files)} CICIDS2017 file(s): {[os.path.basename(f) for f in csv_files]}")
+    print(f"Found {len(csv_files)} CICIDS2017 file(s):")
     dfs = []
     for path in csv_files:
         try:
             df = pd.read_csv(path, low_memory=False)
             df.columns = df.columns.str.strip()
             dfs.append(df)
-            print(f"  Loaded {os.path.basename(path)}: {len(df):,} rows")
-        except Exception as e:
-            print(f"  [WARN] Could not read {path}: {e}")
+            print(f"  {os.path.basename(path):55s}  {len(df):>9,} rows")
+        except Exception as exc:
+            print(f"  [WARN] Could not read {os.path.basename(path)}: {exc}")
 
     if not dfs:
         return None
 
     combined = pd.concat(dfs, ignore_index=True)
-    print(f"Total rows before cleaning: {len(combined):,}")
+    print(f"Total rows loaded: {len(combined):,}")
     return combined
 
 
-def preprocess_cicids(df: pd.DataFrame) -> np.ndarray:
-    # Keep only columns we need
+# ---------------------------------------------------------------------------
+# Preprocessing
+# ---------------------------------------------------------------------------
+
+def preprocess_cicids(df: pd.DataFrame, max_benign: int = 300_000) -> np.ndarray:
     needed = list(CICIDS_COL_MAP.keys())
     missing = [c for c in needed if c not in df.columns]
     if missing:
-        raise ValueError(f"Missing CICIDS2017 columns: {missing}. "
-                         f"Available: {list(df.columns[:20])}")
+        raise ValueError(
+            f"Missing columns: {missing}\nAvailable: {list(df.columns[:20])}"
+        )
 
     df = df[needed].copy()
     df.rename(columns=CICIDS_COL_MAP, inplace=True)
-
-    # Normalise label
     df["label"] = df["label"].astype(str).str.strip()
 
     # Flow Duration in CICIDS2017 is in microseconds → convert to seconds
     df["flow_duration"] = df["flow_duration"] / 1_000_000.0
 
-    # Replace inf / -inf with NaN, then drop
+    # Replace Inf/-Inf (common for Flow Bytes/s when duration == 0)
     df.replace([np.inf, -np.inf], np.nan, inplace=True)
     before = len(df)
     df.dropna(subset=FEATURES, inplace=True)
-    after = len(df)
-    if before != after:
-        print(f"  Dropped {before - after:,} rows with NaN/Inf values")
+    dropped = before - len(df)
+    if dropped:
+        print(f"  Dropped {dropped:,} rows with NaN/Inf")
 
-    # Drop nonsensical flows (zero or negative duration)
-    df = df[df["flow_duration"] > 0]
+    df = df[df["flow_duration"] > 0].copy()
 
-    # Cap extreme values at 99.9th percentile to reduce outlier influence on scaler
+    # Label distribution
+    counts = df["label"].value_counts()
+    print("\nLabel distribution (after cleaning):")
+    for lbl, cnt in counts.items():
+        pct = cnt / len(df) * 100
+        print(f"  {lbl:<40} {cnt:>9,}  ({pct:5.1f}%)")
+
+    # Keep only BENIGN for training
+    benign = df[df["label"] == "BENIGN"]
+    print(f"\nBENIGN rows available for training: {len(benign):,}")
+
+    if len(benign) < 1_000:
+        raise ValueError(f"Too few BENIGN rows: {len(benign)}")
+
+    # Sample to keep training time reasonable (IF scales as O(n·trees))
+    if len(benign) > max_benign:
+        benign = benign.sample(max_benign, random_state=42)
+        print(f"Sampled {max_benign:,} BENIGN rows for training")
+
+    # Cap extreme values at 99.9th percentile to reduce scaler distortion
+    X = benign[FEATURES].copy()
     for col in ["flow_bytes_per_sec", "flow_packets_per_sec",
                 "total_fwd_packets", "total_bwd_packets",
                 "total_fwd_bytes", "total_bwd_bytes"]:
-        cap = df[col].quantile(0.999)
-        df[col] = df[col].clip(upper=cap)
+        cap = X[col].quantile(0.999)
+        X[col] = X[col].clip(upper=cap)
 
-    # Keep only BENIGN for training — IDS learns "normal" behaviour
-    benign = df[df["label"] == "BENIGN"]
-    n_benign = len(benign)
-    n_attack = len(df) - n_benign
-    print(f"  BENIGN rows (training): {n_benign:,} | Attack rows (excluded from fit): {n_attack:,}")
-
-    if n_benign < 500:
-        raise ValueError(f"Too few BENIGN samples ({n_benign}). "
-                         "Add more CICIDS2017 CSV files to the data/ folder.")
-
-    X = benign[FEATURES].values.astype(np.float64)
-    return X
+    return X.values.astype(np.float64)
 
 
-def generate_synthetic_data(n_normal: int = 8000, n_anomaly: int = 500) -> np.ndarray:
-    """Fallback when no CICIDS2017 files are present."""
+# ---------------------------------------------------------------------------
+# Synthetic fallback (used when no CICIDS2017 files are found)
+# ---------------------------------------------------------------------------
+
+def generate_synthetic_data(n_normal: int = 8_000, n_anomaly: int = 600) -> np.ndarray:
     print("No CICIDS2017 data found — generating synthetic training data.")
     rng = np.random.default_rng(42)
-
-    def normal_block(n):
-        return np.column_stack([
-            rng.choice([80, 443, 53, 22, 8080, 3306, 5432], n),  # destination_port
-            rng.choice([6, 17, 1], n),                             # protocol
-            rng.uniform(0.1, 60.0, n),                             # flow_duration
-            rng.integers(1, 120, n),                               # total_fwd_packets
-            rng.integers(1, 120, n),                               # total_bwd_packets
-            rng.integers(100, 60_000, n),                          # total_fwd_bytes
-            rng.integers(100, 60_000, n),                          # total_bwd_bytes
-            rng.uniform(100, 60_000, n),                           # flow_bytes_per_sec
-            rng.uniform(0.1, 10.0, n),                             # flow_packets_per_sec
-            rng.integers(0, 2, n),                                 # syn_flag_count
-            rng.integers(0, 1, n),                                 # rst_flag_count
-            rng.uniform(100, 1000, n),                             # avg_packet_size
-        ])
-
     k = n_anomaly // 3
+
+    def normal(n):
+        return np.column_stack([
+            rng.choice([80, 443, 53, 22, 8080, 3306, 5432], n),
+            rng.uniform(0.1, 60.0, n),
+            rng.integers(1, 120, n),
+            rng.integers(1, 120, n),
+            rng.integers(100, 60_000, n),
+            rng.integers(100, 60_000, n),
+            rng.uniform(100, 60_000, n),
+            rng.uniform(0.1, 10.0, n),
+            rng.integers(0, 2, n),
+            rng.integers(0, 1, n),
+            rng.uniform(100, 1_000, n),
+        ])
 
     port_scan = np.column_stack([
         rng.integers(1, 65535, k),
-        np.full(k, 6),
         rng.uniform(0.001, 0.1, k),
         rng.integers(1, 3, k),
         rng.integers(0, 1, k),
@@ -169,7 +186,6 @@ def generate_synthetic_data(n_normal: int = 8000, n_anomaly: int = 500) -> np.nd
 
     dos = np.column_stack([
         rng.choice([80, 443], k),
-        rng.choice([6, 17], k),
         rng.uniform(0.001, 2.0, k),
         rng.integers(1_000, 50_000, k),
         rng.integers(0, 100, k),
@@ -184,7 +200,6 @@ def generate_synthetic_data(n_normal: int = 8000, n_anomaly: int = 500) -> np.nd
 
     brute = np.column_stack([
         rng.choice([22, 3389, 21, 23], k),
-        np.full(k, 6),
         rng.uniform(10, 600, k),
         rng.integers(50, 500, k),
         rng.integers(50, 500, k),
@@ -197,34 +212,39 @@ def generate_synthetic_data(n_normal: int = 8000, n_anomaly: int = 500) -> np.nd
         rng.uniform(100, 500, k),
     ])
 
-    return np.vstack([normal_block(n_normal), port_scan, dos, brute])
+    return np.vstack([normal(n_normal), port_scan, dos, brute])
 
+
+# ---------------------------------------------------------------------------
+# Train / load
+# ---------------------------------------------------------------------------
 
 def train_model(data_dir: str = DATA_DIR) -> Pipeline:
     df = load_cicids2017(data_dir)
 
     if df is not None:
-        print("Preprocessing CICIDS2017 dataset...")
+        print("\nPreprocessing CICIDS2017 dataset...")
         X_train = preprocess_cicids(df)
-        # Training on BENIGN only → very low expected contamination during inference
         contamination = 0.01
+        source = "CICIDS2017"
     else:
         X_train = generate_synthetic_data()
         contamination = 0.08
+        source = "synthetic"
+
+    print(f"\nTraining Isolation Forest on {len(X_train):,} {source} samples "
+          f"({len(FEATURES)} features, contamination={contamination})...")
 
     pipeline = Pipeline([
         ("scaler", StandardScaler()),
         ("model", IsolationForest(
             n_estimators=200,
-            max_samples=min(len(X_train), 256),
+            max_samples=min(len(X_train), 512),
             contamination=contamination,
             random_state=42,
             n_jobs=-1,
-        ))
+        )),
     ])
-
-    print(f"Training Isolation Forest on {len(X_train):,} samples "
-          f"({len(FEATURES)} features, contamination={contamination})...")
     pipeline.fit(X_train)
     joblib.dump(pipeline, MODEL_PATH)
     print(f"Model saved → {MODEL_PATH}")
@@ -238,14 +258,16 @@ def load_or_train(data_dir: str = DATA_DIR) -> Pipeline:
     return train_model(data_dir)
 
 
+# ---------------------------------------------------------------------------
+# Predict
+# ---------------------------------------------------------------------------
+
 def predict(pipeline: Pipeline, features: list) -> dict:
     X = np.array(features, dtype=np.float64).reshape(1, -1)
-    # Replace any inf that might slip through from sensor
     X = np.nan_to_num(X, nan=0.0, posinf=1e9, neginf=0.0)
 
     raw_score = pipeline.decision_function(X)[0]
-    label = pipeline.predict(X)[0]
-    is_anomaly = label == -1
+    is_anomaly = pipeline.predict(X)[0] == -1
 
     # decision_function: positive = normal, negative = anomaly
     # Remap to [0, 1] where 1 = most anomalous

@@ -30,7 +30,7 @@ except ImportError:
     SCAPY_AVAILABLE = False
     print("[WARN] Scapy not installed. Running in simulation mode.")
 
-BACKEND_URL = "http://localhost:8080"
+BACKEND_URL = "http://localhost:8081"
 FLOW_INTERVAL = 5   # seconds per aggregation window
 
 # Protocol number → string (for display) and number (for model)

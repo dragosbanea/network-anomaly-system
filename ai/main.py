@@ -16,9 +16,7 @@ pipeline = None
 
 
 class PredictRequest(BaseModel):
-    # Identifiers (used by backend, not by model)
     destinationPort: int
-    protocol: int               # 6=TCP, 17=UDP, 1=ICMP
     flowDuration: float         # seconds
     totalFwdPackets: int
     totalBwdPackets: int
@@ -51,7 +49,6 @@ def predict_endpoint(req: PredictRequest):
         raise HTTPException(status_code=503, detail="Model not loaded")
     features = [
         req.destinationPort,
-        req.protocol,
         req.flowDuration,
         req.totalFwdPackets,
         req.totalBwdPackets,
