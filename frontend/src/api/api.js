@@ -26,3 +26,8 @@ export const monitoringApi = {
   start: (networkInterface) => http.post('/monitoring/start', { networkInterface }).then(r => r.data),
   stop: () => http.post('/monitoring/stop').then(r => r.data),
 }
+
+export const modelApi = {
+  getMetrics: () => http.get('/model/metrics').then(r => r.data),
+  getInfo: () => http.get('/model/info').then(r => r.data),
+}
