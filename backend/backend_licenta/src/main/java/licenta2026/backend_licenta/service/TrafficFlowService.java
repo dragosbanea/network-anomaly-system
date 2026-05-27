@@ -30,19 +30,18 @@ public class TrafficFlowService {
     @Value("${ai.service.url}")
     private String aiServiceUrl;
 
-
     public TrafficFlowService(TrafficFlowRepository flowRepository,
                                AnalysisResultRepository resultRepository,
                                MonitoringSessionRepository sessionRepository,
                                AlertService alertService,
                                MonitoringService monitoringService,
                                RestTemplate restTemplate) {
-        this.flowRepository = flowRepository;
-        this.resultRepository = resultRepository;
+        this.flowRepository    = flowRepository;
+        this.resultRepository  = resultRepository;
         this.sessionRepository = sessionRepository;
-        this.alertService = alertService;
+        this.alertService      = alertService;
         this.monitoringService = monitoringService;
-        this.restTemplate = restTemplate;
+        this.restTemplate      = restTemplate;
     }
 
     public AnalysisResult analyzeFlow(TrafficFlowRequest request) {
@@ -65,7 +64,7 @@ public class TrafficFlowService {
         result = resultRepository.save(result);
 
         if (prediction.isAnomaly()) {
-            alertService.createAlert(flow, prediction.getAnomalyScore());
+            alertService.createAlert(flow, prediction.getAnomalyScore(), prediction.getLabel());
             if (request.getSessionId() != null) {
                 monitoringService.incrementAnomalyCount(request.getSessionId());
             }
@@ -104,6 +103,15 @@ public class TrafficFlowService {
         flow.setSynFlagCount(req.getSynFlagCount());
         flow.setRstFlagCount(req.getRstFlagCount());
         flow.setAvgPacketSize(req.getAvgPacketSize());
+        // Extended
+        flow.setFinFlagCount(req.getFinFlagCount());
+        flow.setAckFlagCount(req.getAckFlagCount());
+        flow.setPshFlagCount(req.getPshFlagCount());
+        flow.setUrgFlagCount(req.getUrgFlagCount());
+        flow.setFwdPacketLenMin(req.getFwdPacketLenMin());
+        flow.setFwdPacketLenMax(req.getFwdPacketLenMax());
+        flow.setBwdPacketLenMax(req.getBwdPacketLenMax());
+        flow.setPacketLenStd(req.getPacketLenStd());
         flow.setTimestamp(LocalDateTime.now());
 
         if (req.getSessionId() != null) {
@@ -125,7 +133,15 @@ public class TrafficFlowService {
                     flow.getFlowPacketsPerSec(),
                     flow.getSynFlagCount(),
                     flow.getRstFlagCount(),
-                    flow.getAvgPacketSize()
+                    flow.getAvgPacketSize(),
+                    flow.getFinFlagCount(),
+                    flow.getAckFlagCount(),
+                    flow.getPshFlagCount(),
+                    flow.getUrgFlagCount(),
+                    flow.getFwdPacketLenMin(),
+                    flow.getFwdPacketLenMax(),
+                    flow.getBwdPacketLenMax(),
+                    flow.getPacketLenStd()
             );
             return restTemplate.postForObject(aiServiceUrl + "/predict", aiReq, AiPredictionResponse.class);
         } catch (Exception e) {

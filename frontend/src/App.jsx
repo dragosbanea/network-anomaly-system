@@ -4,6 +4,7 @@ import Dashboard from './pages/Dashboard.jsx'
 import LiveMonitor from './pages/LiveMonitor.jsx'
 import Alerts from './pages/Alerts.jsx'
 import History from './pages/History.jsx'
+import ModelMetrics from './pages/ModelMetrics.jsx'
 
 export default function App() {
   return (
@@ -15,6 +16,7 @@ export default function App() {
           <Route path="/monitor" element={<LiveMonitor />} />
           <Route path="/alerts" element={<Alerts />} />
           <Route path="/history" element={<History />} />
+          <Route path="/metrics" element={<ModelMetrics />} />
         </Routes>
       </div>
     </div>

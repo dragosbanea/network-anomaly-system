@@ -191,3 +191,31 @@ input:focus, select:focus { border-color: var(--accent); }
   margin: 40px auto;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+
+/* WebSocket live indicator */
+.ws-indicator {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.ws-indicator.connected { background: rgba(82,196,122,0.15); color: var(--success); }
+.ws-indicator.connecting { background: rgba(224,160,82,0.15); color: var(--warning); }
+.ws-indicator.disconnected { background: rgba(224,82,82,0.15); color: var(--danger); }
+
+/* Metric bar (model metrics page) */
+.metric-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+.metric-bar-fill { height: 3px; border-radius: 2px; transition: width 0.4s; }
+
+/* Feature chips */
+.feature-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-family: monospace;
+}
+.feature-chip.base { background: rgba(79,142,247,0.12); color: var(--accent); border: 1px solid rgba(79,142,247,0.25); }
+.feature-chip.ext  { background: rgba(82,196,122,0.12); color: var(--success); border: 1px solid rgba(82,196,122,0.25); }

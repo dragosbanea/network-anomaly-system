@@ -6,6 +6,7 @@ public class TrafficFlowRequest {
     private int sourcePort;
     private int destinationPort;
     private String protocol;
+    // Base flow metrics
     private long totalFwdPackets;
     private long totalBwdPackets;
     private long totalFwdBytes;
@@ -16,6 +17,15 @@ public class TrafficFlowRequest {
     private int synFlagCount;
     private int rstFlagCount;
     private double avgPacketSize;
+    // Extended features (optional — default 0 when not provided by sensor)
+    private int finFlagCount;
+    private int ackFlagCount;
+    private int pshFlagCount;
+    private int urgFlagCount;
+    private double fwdPacketLenMin;
+    private double fwdPacketLenMax;
+    private double bwdPacketLenMax;
+    private double packetLenStd;
     private Long sessionId;
 
     public String getSourceIp() { return sourceIp; }
@@ -33,6 +43,14 @@ public class TrafficFlowRequest {
     public int getSynFlagCount() { return synFlagCount; }
     public int getRstFlagCount() { return rstFlagCount; }
     public double getAvgPacketSize() { return avgPacketSize; }
+    public int getFinFlagCount() { return finFlagCount; }
+    public int getAckFlagCount() { return ackFlagCount; }
+    public int getPshFlagCount() { return pshFlagCount; }
+    public int getUrgFlagCount() { return urgFlagCount; }
+    public double getFwdPacketLenMin() { return fwdPacketLenMin; }
+    public double getFwdPacketLenMax() { return fwdPacketLenMax; }
+    public double getBwdPacketLenMax() { return bwdPacketLenMax; }
+    public double getPacketLenStd() { return packetLenStd; }
     public Long getSessionId() { return sessionId; }
 
     public void setSourceIp(String v) { this.sourceIp = v; }
@@ -50,5 +68,13 @@ public class TrafficFlowRequest {
     public void setSynFlagCount(int v) { this.synFlagCount = v; }
     public void setRstFlagCount(int v) { this.rstFlagCount = v; }
     public void setAvgPacketSize(double v) { this.avgPacketSize = v; }
+    public void setFinFlagCount(int v) { this.finFlagCount = v; }
+    public void setAckFlagCount(int v) { this.ackFlagCount = v; }
+    public void setPshFlagCount(int v) { this.pshFlagCount = v; }
+    public void setUrgFlagCount(int v) { this.urgFlagCount = v; }
+    public void setFwdPacketLenMin(double v) { this.fwdPacketLenMin = v; }
+    public void setFwdPacketLenMax(double v) { this.fwdPacketLenMax = v; }
+    public void setBwdPacketLenMax(double v) { this.bwdPacketLenMax = v; }
+    public void setPacketLenStd(double v) { this.packetLenStd = v; }
     public void setSessionId(Long v) { this.sessionId = v; }
 }

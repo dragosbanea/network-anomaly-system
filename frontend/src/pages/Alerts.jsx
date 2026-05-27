@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { alertsApi } from '../api/api.js'
+import { useAlertWebSocket } from '../hooks/useAlertWebSocket.js'
 
 function fmt(dt) {
   if (!dt) return '-'
@@ -21,10 +22,12 @@ export default function Alerts() {
   const [alerts, setAlerts] = useState([])
   const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [newCount, setNewCount] = useState(0)
 
   const load = useCallback(async () => {
     const data = await alertsApi.getAll()
     setAlerts(data)
+    setNewCount(0)
     setLoading(false)
   }, [])
 
@@ -33,6 +36,15 @@ export default function Alerts() {
     const id = setInterval(load, 15000)
     return () => clearInterval(id)
   }, [load])
+
+  // Append new alert instantly via WebSocket
+  useAlertWebSocket(useCallback((alert) => {
+    setAlerts(prev => {
+      if (prev.some(a => a.id === alert.id)) return prev
+      return [alert, ...prev]
+    })
+    setNewCount(n => n + 1)
+  }, []))
 
   async function resolve(id) {
     await alertsApi.resolve(id)
@@ -48,7 +60,12 @@ export default function Alerts() {
   return (
     <div className="content">
       <div className="topbar" style={{ margin: '-24px -24px 24px', padding: '14px 24px' }}>
-        <h1>Alerts</h1>
+        <h1>
+          Alerts
+          {newCount > 0 && (
+            <span className="badge" style={{ marginLeft: 8 }}>{newCount} new</span>
+          )}
+        </h1>
         <div style={{ display: 'flex', gap: 8 }}>
           {['all', 'active', 'resolved'].map(f => (
             <button

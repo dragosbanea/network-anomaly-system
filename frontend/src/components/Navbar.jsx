@@ -5,6 +5,7 @@ const links = [
   { to: '/monitor', label: 'Live Monitor', icon: '◉' },
   { to: '/alerts', label: 'Alerts', icon: '⚠' },
   { to: '/history', label: 'History', icon: '≡' },
+  { to: '/metrics', label: 'Model Metrics', icon: '◈' },
 ]
 
 export default function Navbar() {

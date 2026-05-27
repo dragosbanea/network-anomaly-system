@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { statsApi, alertsApi } from '../api/api.js'
+import { useAlertWebSocket } from '../hooks/useAlertWebSocket.js'
 
 function StatCard({ title, value, sub, className }) {
   return (
@@ -15,6 +16,7 @@ export default function Dashboard() {
   const [stats, setStats] = useState(null)
   const [recentAlerts, setRecentAlerts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [wsStatus, setWsStatus] = useState('connecting')
 
   const load = useCallback(async () => {
     try {
@@ -23,7 +25,7 @@ export default function Dashboard() {
         alertsApi.getRecent(60),
       ])
       setStats(s)
-      setRecentAlerts(a.slice(0, 5))
+      setRecentAlerts(a.slice(0, 8))
     } finally {
       setLoading(false)
     }
@@ -35,6 +37,18 @@ export default function Dashboard() {
     return () => clearInterval(id)
   }, [load])
 
+  // Real-time alerts via WebSocket — prepend new alert without waiting for poll
+  useAlertWebSocket(useCallback((alert) => {
+    setWsStatus('connected')
+    setRecentAlerts(prev => [alert, ...prev].slice(0, 8))
+    setStats(prev => prev ? {
+      ...prev,
+      totalAnomalies: (prev.totalAnomalies || 0) + 1,
+      unresolvedAlerts: (prev.unresolvedAlerts || 0) + 1,
+      ...(alert.severity === 'CRITICAL' ? { criticalAlerts: (prev.criticalAlerts || 0) + 1 } : {}),
+    } : prev)
+  }, []))
+
   if (loading) return <div className="content"><div className="spinner" /></div>
 
   const anomalyRate = stats?.anomalyRate?.toFixed(1) ?? '0.0'
@@ -43,7 +57,12 @@ export default function Dashboard() {
     <div className="content">
       <div className="topbar" style={{ margin: '-24px -24px 24px', padding: '14px 24px' }}>
         <h1>Dashboard</h1>
-        <button className="refresh-btn" onClick={load}>Refresh</button>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <span className={`ws-indicator ${wsStatus}`} title={`WebSocket: ${wsStatus}`}>
+            {wsStatus === 'connected' ? 'Live' : 'Connecting...'}
+          </span>
+          <button className="refresh-btn" onClick={load}>Refresh</button>
+        </div>
       </div>
 
       <div className="grid grid-4" style={{ marginBottom: 24 }}>
@@ -73,7 +92,7 @@ export default function Dashboard() {
 
         <div className="card">
           <div className="section-header">
-            <div className="section-title">Recent Alerts (last hour)</div>
+            <div className="section-title">Recent Alerts (live)</div>
           </div>
           {recentAlerts.length === 0 ? (
             <div className="empty">No recent alerts</div>

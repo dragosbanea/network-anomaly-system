@@ -1,23 +1,28 @@
 """
-AI service — FastAPI server exposing the Isolation Forest model.
+AI service — FastAPI server exposing the IDS model.
 Start: python main.py  (listens on :5000)
 
 To use CICIDS2017: place CSV files in ai/data/ before starting.
 """
 
 import argparse
+import json
+import os
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from model import load_or_train, train_model, predict, FEATURES, DATA_DIR
+from sklearn.ensemble import IsolationForest
+from model import (load_or_train, train_model, predict,
+                   FEATURES, FEATURES_BASE, DATA_DIR, METRICS_PATH)
 
-app = FastAPI(title="IDS AI Service", version="2.0.0")
+app = FastAPI(title="IDS AI Service", version="3.0.0")
 pipeline = None
 
 
 class PredictRequest(BaseModel):
+    # Base 11 features (required)
     destinationPort: int
-    flowDuration: float         # seconds
+    flowDuration: float
     totalFwdPackets: int
     totalBwdPackets: int
     totalFwdBytes: int
@@ -27,6 +32,15 @@ class PredictRequest(BaseModel):
     synFlagCount: int
     rstFlagCount: int
     avgPacketSize: float
+    # Extended 8 features (optional — defaults to 0 for backward compat)
+    finFlagCount: int = 0
+    ackFlagCount: int = 0
+    pshFlagCount: int = 0
+    urgFlagCount: int = 0
+    fwdPacketLenMin: float = 0.0
+    fwdPacketLenMax: float = 0.0
+    bwdPacketLenMax: float = 0.0
+    packetLenStd: float = 0.0
 
 
 class PredictResponse(BaseModel):
@@ -59,6 +73,15 @@ def predict_endpoint(req: PredictRequest):
         req.synFlagCount,
         req.rstFlagCount,
         req.avgPacketSize,
+        # Extended
+        req.finFlagCount,
+        req.ackFlagCount,
+        req.pshFlagCount,
+        req.urgFlagCount,
+        req.fwdPacketLenMin,
+        req.fwdPacketLenMax,
+        req.bwdPacketLenMax,
+        req.packetLenStd,
     ]
     return PredictResponse(**predict(pipeline, features))
 
@@ -75,17 +98,37 @@ def health():
     return {"status": "ok", "modelLoaded": pipeline is not None}
 
 
+@app.get("/metrics")
+def get_metrics():
+    if not os.path.exists(METRICS_PATH):
+        raise HTTPException(
+            status_code=404,
+            detail="No metrics file found. Run: python model.py --compare"
+        )
+    with open(METRICS_PATH) as f:
+        return json.load(f)
+
+
 @app.get("/model/info")
 def model_info():
     if pipeline is None:
         raise HTTPException(status_code=503, detail="Model not loaded")
-    iso = pipeline.named_steps["model"]
+    model_step = pipeline.named_steps["model"]
+    n_features = getattr(model_step, "n_features_in_", len(FEATURES_BASE))
+    if isinstance(model_step, IsolationForest):
+        return {
+            "type": "IsolationForest",
+            "nEstimators": model_step.n_estimators,
+            "contamination": model_step.contamination,
+            "nFeatures": n_features,
+            "features": FEATURES[:n_features],
+        }
     return {
-        "type": "IsolationForest",
-        "nEstimators": iso.n_estimators,
-        "contamination": iso.contamination,
-        "features": FEATURES,
-        "nFeatures": len(FEATURES),
+        "type": "RandomForest",
+        "nEstimators": model_step.n_estimators,
+        "classes": list(model_step.classes_),
+        "nFeatures": n_features,
+        "features": FEATURES[:n_features],
     }
 
 
@@ -98,10 +141,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.retrain:
-        import os
-        from model import MODEL_PATH
-        if os.path.exists(MODEL_PATH):
-            os.remove(MODEL_PATH)
-            print(f"Deleted existing model ({MODEL_PATH}) — will retrain.")
+        from model import MODEL_PATH, RF_MODEL_PATH
+        for p in (MODEL_PATH, RF_MODEL_PATH):
+            if os.path.exists(p):
+                os.remove(p)
+                print(f"Deleted existing model ({p}) — will retrain.")
 
     uvicorn.run(app, host=args.host, port=args.port)
