@@ -135,6 +135,20 @@ tr:hover td { background: var(--surface2); }
 .badge-status.anomaly { background: rgba(224,82,82,0.2); color: var(--danger); }
 .badge-status.normal { background: rgba(82,196,122,0.15); color: var(--success); }
 
+.badge-alert-type {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  background: rgba(79,142,247,0.1);
+  color: var(--accent);
+}
+.badge-alert-type.unknown {
+  background: rgba(160,82,224,0.15);
+  color: #a052e0;
+}
+
 .btn {
   padding: 7px 16px;
   border-radius: 6px;

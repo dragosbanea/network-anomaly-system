@@ -12,11 +12,12 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from sklearn.ensemble import IsolationForest
-from model import (load_or_train, train_model, predict,
+from model import (load_or_train, load_if_model, train_model, predict, predict_if,
                    FEATURES, FEATURES_BASE, DATA_DIR, METRICS_PATH)
 
 app = FastAPI(title="IDS AI Service", version="3.0.0")
 pipeline = None
+if_pipeline = None  # Secondary: Isolation Forest for unknown anomaly detection
 
 
 class PredictRequest(BaseModel):
@@ -32,7 +33,6 @@ class PredictRequest(BaseModel):
     synFlagCount: int
     rstFlagCount: int
     avgPacketSize: float
-    # Extended 8 features (optional — defaults to 0 for backward compat)
     finFlagCount: int = 0
     ackFlagCount: int = 0
     pshFlagCount: int = 0
@@ -52,9 +52,13 @@ class PredictResponse(BaseModel):
 
 @app.on_event("startup")
 async def startup():
-    global pipeline
+    global pipeline, if_pipeline
     pipeline = load_or_train(DATA_DIR)
-    print("AI service ready.")
+    if_pipeline = load_if_model()
+    if if_pipeline is not None:
+        print("Hybrid mode: RF (primary) + IsolationForest (secondary) loaded.")
+    else:
+        print("AI service ready (RF only — no IF model found).")
 
 
 @app.post("/predict", response_model=PredictResponse)
@@ -73,7 +77,6 @@ def predict_endpoint(req: PredictRequest):
         req.synFlagCount,
         req.rstFlagCount,
         req.avgPacketSize,
-        # Extended
         req.finFlagCount,
         req.ackFlagCount,
         req.pshFlagCount,
@@ -83,7 +86,20 @@ def predict_endpoint(req: PredictRequest):
         req.bwdPacketLenMax,
         req.packetLenStd,
     ]
-    return PredictResponse(**predict(pipeline, features))
+    result = predict(pipeline, features)
+
+    # Hybrid layer: if RF says BENIGN, run IF to catch unknown anomalies
+    if not result["anomaly"] and if_pipeline is not None:
+        if_result = predict_if(if_pipeline, features)
+        if if_result["is_anomaly"]:
+            return PredictResponse(
+                anomaly=True,
+                anomalyScore=if_result["anomaly_score"],
+                confidence=if_result["confidence"],
+                label="UNKNOWN",
+            )
+
+    return PredictResponse(**result)
 
 
 @app.post("/train")

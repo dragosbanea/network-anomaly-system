@@ -45,11 +45,18 @@ public class TrafficFlowService {
     }
 
     public AnalysisResult analyzeFlow(TrafficFlowRequest request) {
-        TrafficFlow flow = buildFlow(request);
+        Long sessionId = request.getSessionId();
+        if (sessionId == null) {
+            sessionId = monitoringService.getActiveSession()
+                    .map(s -> s.getId())
+                    .orElse(null);
+        }
+
+        TrafficFlow flow = buildFlow(request, sessionId);
         flow = flowRepository.save(flow);
 
-        if (request.getSessionId() != null) {
-            monitoringService.incrementFlowCount(request.getSessionId());
+        if (sessionId != null) {
+            monitoringService.incrementFlowCount(sessionId);
         }
 
         AiPredictionResponse prediction = callAiService(flow);
@@ -65,8 +72,8 @@ public class TrafficFlowService {
 
         if (prediction.isAnomaly()) {
             alertService.createAlert(flow, prediction.getAnomalyScore(), prediction.getLabel());
-            if (request.getSessionId() != null) {
-                monitoringService.incrementAnomalyCount(request.getSessionId());
+            if (sessionId != null) {
+                monitoringService.incrementAnomalyCount(sessionId);
             }
         }
 
@@ -86,7 +93,7 @@ public class TrafficFlowService {
         return resultRepository.findAll();
     }
 
-    private TrafficFlow buildFlow(TrafficFlowRequest req) {
+    private TrafficFlow buildFlow(TrafficFlowRequest req, Long sessionId) {
         TrafficFlow flow = new TrafficFlow();
         flow.setSourceIp(req.getSourceIp());
         flow.setDestinationIp(req.getDestinationIp());
@@ -114,8 +121,8 @@ public class TrafficFlowService {
         flow.setPacketLenStd(req.getPacketLenStd());
         flow.setTimestamp(LocalDateTime.now());
 
-        if (req.getSessionId() != null) {
-            sessionRepository.findById(req.getSessionId()).ifPresent(flow::setSession);
+        if (sessionId != null) {
+            sessionRepository.findById(sessionId).ifPresent(flow::setSession);
         }
         return flow;
     }

@@ -76,9 +76,9 @@ export default function History() {
                   <td>{r.trafficFlow?.destinationIp ?? '-'}</td>
                   <td>{r.trafficFlow?.destinationPort ?? '-'}</td>
                   <td>{r.trafficFlow?.protocol ?? '-'}</td>
-                  <td>{r.trafficFlow?.packetCount ?? '-'}</td>
-                  <td>{r.trafficFlow?.byteCount?.toLocaleString() ?? '-'}</td>
-                  <td>{r.trafficFlow?.duration?.toFixed(2) ?? '-'}s</td>
+                  <td>{r.trafficFlow ? (r.trafficFlow.totalFwdPackets ?? 0) + (r.trafficFlow.totalBwdPackets ?? 0) : '-'}</td>
+                  <td>{r.trafficFlow ? ((r.trafficFlow.totalFwdBytes ?? 0) + (r.trafficFlow.totalBwdBytes ?? 0)).toLocaleString() : '-'}</td>
+                  <td>{r.trafficFlow?.flowDuration != null ? (r.trafficFlow.flowDuration / 1_000_000).toFixed(2) : '-'}s</td>
                   <td>{r.anomalyScore?.toFixed(3)}</td>
                   <td>
                     <span className={`badge-status ${r.anomaly ? 'anomaly' : 'normal'}`}>

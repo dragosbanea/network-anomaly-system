@@ -1,0 +1,11 @@
+.claude/
+node_modules/
+__pycache__/
+*.pyc
+*.log
+.idea/
+ai/data/
+ai/ids_model_rf.joblib
+ai/ids_model_rf_cicids.joblib
+build/
+.gradle/

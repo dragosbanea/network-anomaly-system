@@ -34,11 +34,10 @@ except ImportError:
     print("[WARN] Scapy not installed. Running in simulation mode.")
 
 BACKEND_URL   = "http://localhost:8081"
-FLOW_INTERVAL = 5   # seconds per regular aggregation window
+FLOW_INTERVAL = 5
 
-# Port scan / DoS thresholds that trigger an early flush
-RAPID_SYN_THRESHOLD   = 50      # SYN packets in one flow → port scan
-RAPID_FLOOD_BYTES     = 2_000_000  # bytes in one flow → DoS
+RAPID_SYN_THRESHOLD   = 50
+RAPID_FLOOD_BYTES     = 2_000_000
 
 
 @dataclass
@@ -117,7 +116,6 @@ class FlowAggregator:
 
             avg_size = (sum(all_sizes) / len(all_sizes)) if all_sizes else 0.0
 
-            # Packet length stats
             fwd_min = min(rec.fwd_packet_sizes) if rec.fwd_packet_sizes else 0
             fwd_max = max(rec.fwd_packet_sizes) if rec.fwd_packet_sizes else 0
             bwd_max = max(rec.bwd_packet_sizes) if rec.bwd_packet_sizes else 0
@@ -163,9 +161,7 @@ aggregator = FlowAggregator()
 _backend_ok = True
 
 
-# ---------------------------------------------------------------------------
 # Scapy packet callback
-# ---------------------------------------------------------------------------
 
 def packet_callback(pkt):
     if not pkt.haslayer(IP):
@@ -193,9 +189,7 @@ def packet_callback(pkt):
         aggregator.add_packet(ip.src, ip.dst, 0, 0, "ICMP", size)
 
 
-# ---------------------------------------------------------------------------
 # Send flows with retry + reconnect logic
-# ---------------------------------------------------------------------------
 
 def send_flows(backend_url: str, session_id=None) -> int:
     global _backend_ok
@@ -232,7 +226,7 @@ def send_flows(backend_url: str, session_id=None) -> int:
                 break
             except requests.RequestException as e:
                 if attempt < 2:
-                    time.sleep(2 ** attempt)   # 1s then 2s backoff
+                    time.sleep(2 ** attempt)
                 else:
                     if _backend_ok:
                         print(f"[WARN] Backend unreachable: {e}")
@@ -241,9 +235,7 @@ def send_flows(backend_url: str, session_id=None) -> int:
     return sent
 
 
-# ---------------------------------------------------------------------------
 # Flush loop (regular interval + exponential backoff when backend is down)
-# ---------------------------------------------------------------------------
 
 def flush_loop(backend_url: str, interval: int, session_id, stop: threading.Event):
     extra_wait = 0
@@ -257,9 +249,7 @@ def flush_loop(backend_url: str, interval: int, session_id, stop: threading.Even
             extra_wait = 0
 
 
-# ---------------------------------------------------------------------------
 # Rapid-detection loop — flushes early on obvious attack patterns
-# ---------------------------------------------------------------------------
 
 def rapid_detect_loop(backend_url: str, session_id, stop: threading.Event):
     while not stop.is_set():
@@ -275,16 +265,13 @@ def rapid_detect_loop(backend_url: str, session_id, stop: threading.Event):
             send_flows(backend_url, session_id)
 
 
-# ---------------------------------------------------------------------------
 # Simulation mode
-# ---------------------------------------------------------------------------
 
 def simulate_traffic(stop: threading.Event):
     normal_ips  = ["192.168.1.10", "192.168.1.20", "192.168.1.30"]
     attacker_ip = "10.0.0.99"
 
     while not stop.is_set():
-        # Normal web/DNS traffic
         src   = random.choice(normal_ips)
         proto = random.choice(["TCP", "TCP", "TCP", "UDP"])
         dport = random.choice([80, 443, 53, 8080])
@@ -297,14 +284,12 @@ def simulate_traffic(stop: threading.Event):
             src, "192.168.1.1", sport, dport, proto, size,
             syn=is_syn, ack=is_ack, psh=is_psh,
         )
-        # Backward response
         bwd_size = random.randint(200, 4000)
         aggregator.add_packet(
             "192.168.1.1", src, dport, sport, proto, bwd_size,
             ack=True, is_forward=False,
         )
 
-        # Occasional port scan burst (5% chance)
         if random.random() < 0.05:
             print("[SIM] Injecting port scan burst from 10.0.0.99")
             for port in range(20, 80):
@@ -314,7 +299,6 @@ def simulate_traffic(stop: threading.Event):
                     syn=True, rst=random.random() < 0.3,
                 )
 
-        # Occasional DoS burst (2% chance)
         if random.random() < 0.02:
             print("[SIM] Injecting DoS burst from 10.0.0.99")
             for _ in range(300):
@@ -328,9 +312,6 @@ def simulate_traffic(stop: threading.Event):
         time.sleep(0.05)
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
 
 def main():
     parser = argparse.ArgumentParser(description="IDS Network Sensor")

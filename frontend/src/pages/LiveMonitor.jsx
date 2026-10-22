@@ -107,7 +107,7 @@ export default function LiveMonitor() {
           </div>
           <div className="monitor-row">
             <span>Total bytes</span>
-            <span>{flows.reduce((a, f) => a + (f.byteCount || 0), 0).toLocaleString()}</span>
+            <span>{flows.reduce((a, f) => a + (f.totalFwdBytes || 0) + (f.totalBwdBytes || 0), 0).toLocaleString()}</span>
           </div>
         </div>
       </div>
@@ -131,7 +131,7 @@ export default function LiveMonitor() {
                 <th>Packets</th>
                 <th>Bytes</th>
                 <th>Duration</th>
-                <th>Conn/s</th>
+                <th>Pkts/s</th>
               </tr>
             </thead>
             <tbody>
@@ -142,10 +142,10 @@ export default function LiveMonitor() {
                   <td>{f.destinationIp}</td>
                   <td>{f.destinationPort}</td>
                   <td>{f.protocol}</td>
-                  <td>{f.packetCount}</td>
-                  <td>{f.byteCount?.toLocaleString()}</td>
-                  <td>{f.duration?.toFixed(2)}s</td>
-                  <td>{f.connectionsPerSecond?.toFixed(2)}</td>
+                  <td>{(f.totalFwdPackets ?? 0) + (f.totalBwdPackets ?? 0)}</td>
+                  <td>{((f.totalFwdBytes ?? 0) + (f.totalBwdBytes ?? 0)).toLocaleString()}</td>
+                  <td>{f.flowDuration != null ? (f.flowDuration / 1_000_000).toFixed(2) : '-'}s</td>
+                  <td>{f.flowPacketsPerSec?.toFixed(2)}</td>
                 </tr>
               ))}
             </tbody>

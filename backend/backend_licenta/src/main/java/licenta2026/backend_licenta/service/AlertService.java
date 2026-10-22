@@ -70,7 +70,6 @@ public class AlertService {
     }
 
     private String classifyAlertType(TrafficFlow flow, String mlLabel) {
-        // Use ML label when available for accurate classification
         if (mlLabel != null && !mlLabel.equals("NORMAL") && !mlLabel.equals("BENIGN")) {
             String label = mlLabel.toUpperCase();
             if (label.contains("PORTSCAN") || label.contains("PORT_SCAN") || label.contains("PORT SCAN"))
@@ -87,6 +86,8 @@ public class AlertService {
                 return "WEB_ATTACK";
             if (label.contains("INFILTRAT"))
                 return "INFILTRATION";
+            if (label.contains("UNKNOWN"))
+                return "UNKNOWN_ANOMALY";
         }
         // Fallback to heuristics when ML label is generic
         if (flow.getFlowPacketsPerSec() > 100) return "PORT_SCAN";

@@ -40,7 +40,6 @@ SVM_MODEL_PATH = "ids_model_svm.joblib"
 METRICS_PATH   = "model_metrics.json"
 DATA_DIR       = "data"
 
-# Original 11 features — kept for backward compat with existing trained models
 FEATURES_BASE = [
     "destination_port",
     "flow_duration",
@@ -55,7 +54,6 @@ FEATURES_BASE = [
     "avg_packet_size",
 ]
 
-# 8 additional features for improved detection precision
 FEATURES_EXT = [
     "fin_flag_count",
     "ack_flag_count",
@@ -95,9 +93,6 @@ CICIDS_COL_MAP = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Data loading
-# ---------------------------------------------------------------------------
 
 def load_cicids2017(data_dir: str) -> pd.DataFrame | None:
     csv_files = glob.glob(os.path.join(data_dir, "**", "*.csv"), recursive=True)
@@ -126,9 +121,6 @@ def load_cicids2017(data_dir: str) -> pd.DataFrame | None:
     return combined
 
 
-# ---------------------------------------------------------------------------
-# Preprocessing helpers
-# ---------------------------------------------------------------------------
 
 def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
@@ -143,7 +135,6 @@ def _clean_df(df: pd.DataFrame) -> pd.DataFrame:
             f"Missing required columns: {missing_base}\nAvailable: {list(df.columns[:20])}"
         )
 
-    # Fill missing extended features with 0 so old CSVs still work
     missing_ext = [f for f in FEATURES_EXT if f not in df.columns]
     if missing_ext:
         print(f"  [INFO] Extended features absent in CSV, padding with 0: {missing_ext}")
@@ -217,9 +208,6 @@ def preprocess_cicids(df: pd.DataFrame, max_benign: int = 300_000) -> np.ndarray
     return preprocess_for_anomaly(df, max_benign)
 
 
-# ---------------------------------------------------------------------------
-# Model constructors
-# ---------------------------------------------------------------------------
 
 def _train_isolation_forest(X_train: np.ndarray, contamination: float = 0.01) -> Pipeline:
     print(f"\nTraining Isolation Forest on {len(X_train):,} BENIGN samples "
@@ -272,9 +260,6 @@ def _train_random_forest(X_train: np.ndarray, y_train: np.ndarray) -> Pipeline:
     return pipeline
 
 
-# ---------------------------------------------------------------------------
-# Evaluation
-# ---------------------------------------------------------------------------
 
 def _binary_labels(y: np.ndarray) -> np.ndarray:
     return (y != "BENIGN").astype(int)
@@ -406,9 +391,6 @@ def train_all_models(data_dir: str = DATA_DIR):
     return if_pipeline, rf_pipeline, svm_pipeline
 
 
-# ---------------------------------------------------------------------------
-# Train / load  (primary = Random Forest)
-# ---------------------------------------------------------------------------
 
 def train_model(data_dir: str = DATA_DIR) -> Pipeline:
     df = load_cicids2017(data_dir)
@@ -439,9 +421,6 @@ def load_or_train(data_dir: str = DATA_DIR) -> Pipeline:
     return train_model(data_dir)
 
 
-# ---------------------------------------------------------------------------
-# Synthetic fallback (19 features)
-# ---------------------------------------------------------------------------
 
 def generate_synthetic_data(n_normal: int = 8_000, n_anomaly: int = 600) -> np.ndarray:
     print("No CICIDS2017 data found — generating synthetic training data.")
@@ -508,9 +487,6 @@ def generate_synthetic_data(n_normal: int = 8_000, n_anomaly: int = 600) -> np.n
     return np.vstack([normal(n_normal), port_scan, dos, brute])
 
 
-# ---------------------------------------------------------------------------
-# Predict — backward-compatible with 11-feature models
-# ---------------------------------------------------------------------------
 
 def _is_isolation_forest(pipeline: Pipeline) -> bool:
     return isinstance(pipeline.named_steps.get("model"), IsolationForest)
@@ -520,7 +496,6 @@ _INFERENCE_CAPS = {
     2: 2_000.0,       # flow_bytes_per_sec  (index in FEATURES)
     # index 0=destination_port,1=flow_duration,2=total_fwd_packets …
 }
-# Map feature name → (index, cap_value) — same cols capped during training
 _CAP_MAP = {
     "flow_bytes_per_sec":    (FEATURES.index("flow_bytes_per_sec"),    4_000_000.0),
     "flow_packets_per_sec":  (FEATURES.index("flow_packets_per_sec"),  250_000.0),
@@ -535,7 +510,6 @@ _CAP_MAP = {
 
 
 def predict(pipeline: Pipeline, features: list) -> dict:
-    # Detect how many features the loaded model actually expects
     model_step = pipeline.named_steps.get("model")
     n_expected = getattr(model_step, "n_features_in_", len(FEATURES))
     features_in = features[:n_expected]
@@ -543,8 +517,7 @@ def predict(pipeline: Pipeline, features: list) -> dict:
     X = np.array(features_in, dtype=np.float64).reshape(1, -1)
     X = np.nan_to_num(X, nan=0.0, posinf=1e9, neginf=0.0)
 
-    # Apply same capping used during training so inference values stay
-    # within the distribution the scaler and RF were fitted on.
+
     for idx, cap in _CAP_MAP.values():
         if idx < X.shape[1]:
             X[0, idx] = min(X[0, idx], cap)
@@ -574,6 +547,33 @@ def predict(pipeline: Pipeline, features: list) -> dict:
         "anomalyScore": anomaly_score,
         "confidence": confidence,
         "label": predicted_class if is_anomaly else "NORMAL",
+    }
+
+
+def load_if_model() -> Pipeline | None:
+    if os.path.exists(MODEL_PATH):
+        print(f"Loading saved IF model from {MODEL_PATH}")
+        return joblib.load(MODEL_PATH)
+    return None
+
+
+def predict_if(if_pipeline: Pipeline, features: list) -> dict:
+    """Run Isolation Forest on the same feature vector. Returns anomaly flag and score."""
+    n_expected = getattr(if_pipeline.named_steps.get("model"), "n_features_in_", len(FEATURES))
+    features_in = features[:n_expected]
+    X = np.array(features_in, dtype=np.float64).reshape(1, -1)
+    X = np.nan_to_num(X, nan=0.0, posinf=1e9, neginf=0.0)
+    for idx, cap in _CAP_MAP.values():
+        if idx < X.shape[1]:
+            X[0, idx] = min(X[0, idx], cap)
+    raw_score = if_pipeline.decision_function(X)[0]
+    is_anomaly = if_pipeline.predict(X)[0] == -1
+    anomaly_score = float(np.clip(0.5 - raw_score, 0.0, 1.0))
+    confidence = float(np.clip(abs(raw_score) * 2, 0.0, 1.0))
+    return {
+        "is_anomaly": bool(is_anomaly),
+        "anomaly_score": round(anomaly_score, 4),
+        "confidence": round(confidence, 4),
     }
 
 

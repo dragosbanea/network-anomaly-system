@@ -7,6 +7,25 @@ function fmt(dt) {
   return new Date(dt).toLocaleString()
 }
 
+const ALERT_TYPE_LABELS = {
+  PORT_SCAN:       'Port Scan',
+  DOS:             'DoS / DDoS',
+  BRUTE_FORCE:     'Brute Force',
+  BOT:             'Bot',
+  WEB_ATTACK:      'Web Attack',
+  INFILTRATION:    'Infiltration',
+  ANOMALY:         'Anomaly',
+  UNKNOWN_ANOMALY: 'Unknown Anomaly',
+}
+
+function AlertTypeBadge({ type }) {
+  const label = ALERT_TYPE_LABELS[type] || type
+  const isUnknown = type === 'UNKNOWN_ANOMALY'
+  return (
+    <span className={`badge-alert-type${isUnknown ? ' unknown' : ''}`}>{label}</span>
+  )
+}
+
 function ScoreBar({ score }) {
   const w = Math.round((score || 0) * 100)
   const cls = w > 70 ? 'high' : w > 40 ? 'medium' : 'low'
@@ -105,7 +124,7 @@ export default function Alerts() {
               {displayed.map(a => (
                 <tr key={a.id}>
                   <td>{fmt(a.createdAt)}</td>
-                  <td>{a.alertType}</td>
+                  <td><AlertTypeBadge type={a.alertType} /></td>
                   <td><span className={`badge-severity ${a.severity}`}>{a.severity}</span></td>
                   <td>{a.sourceIp}</td>
                   <td>{a.destinationIp}:{a.destinationPort}</td>

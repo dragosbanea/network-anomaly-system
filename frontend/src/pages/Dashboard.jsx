@@ -39,7 +39,6 @@ export default function Dashboard() {
 
   // Real-time alerts via WebSocket — prepend new alert without waiting for poll
   useAlertWebSocket(useCallback((alert) => {
-    setWsStatus('connected')
     setRecentAlerts(prev => [alert, ...prev].slice(0, 8))
     setStats(prev => prev ? {
       ...prev,
@@ -47,7 +46,7 @@ export default function Dashboard() {
       unresolvedAlerts: (prev.unresolvedAlerts || 0) + 1,
       ...(alert.severity === 'CRITICAL' ? { criticalAlerts: (prev.criticalAlerts || 0) + 1 } : {}),
     } : prev)
-  }, []))
+  }, []), useCallback(() => setWsStatus('connected'), []))
 
   if (loading) return <div className="content"><div className="spinner" /></div>
 
